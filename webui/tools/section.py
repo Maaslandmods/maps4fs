@@ -2,6 +2,7 @@ from typing import Type
 
 from tools.background import ConvertImageToObj
 from tools.dem import GeoTIFFWindowingTool
+from tools.trees import CreateTreeSchema
 from tools.tool import Tool
 
 
@@ -30,3 +31,8 @@ class Background(Section):
     title = "🏔️ Background"
     description = "Tools to work with background terrain."
     tools = [ConvertImageToObj]
+
+class Trees(Section):
+    title = "🌳 Trees"
+    description = "Tools to work with trees."
+    tools = [CreateTreeSchema]
