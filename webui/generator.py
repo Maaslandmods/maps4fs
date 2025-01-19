@@ -173,7 +173,9 @@ class GeneratorUI:
                     field_name = self.snake_to_human(raw_field_name)
                     disabled = self.is_disabled_on_public(raw_field_name)
                     st.write(getattr(Settings, raw_field_name.upper()))
-                    widget = self._create_widget(field_name, raw_field_name, field_value, disabled)
+                    widget = self._create_widget(
+                        "main", field_name, raw_field_name, field_value, disabled
+                    )
 
                     category[raw_field_name] = widget
 
@@ -182,11 +184,17 @@ class GeneratorUI:
         self.settings = settings
 
     def _create_widget(
-        self, field_name: str, raw_field_name: str, value: int | bool, disabled: bool = False
-    ) -> int | bool:
+        self,
+        prefix: str,
+        field_name: str,
+        raw_field_name: str,
+        value: int | bool | str | tuple | dict,
+        disabled: bool = False,
+    ) -> int | bool | str:
         """Create a widget for the given field.
 
         Arguments:
+            prefix (str): The prefix for the key, used to make sure the key is unique across different contexts (e.g. providers).
             field_name (str): The field name.
             raw_field_name (str): The raw field name.
             value (int | bool): The value of the field.
@@ -195,14 +203,27 @@ class GeneratorUI:
         Returns:
             int | bool: The widget for the field.
         """
+        key = f"{prefix}_{raw_field_name}"
         if disabled:
             st.warning(Messages.SETTING_DISABLED_ON_PUBLIC.format(setting=field_name))
+        if type(value) is str:
+            return st.text_input(label=field_name, value=value, key=key, disabled=disabled)
         if type(value) is int:
             return st.number_input(
-                label=field_name, value=value, min_value=0, key=raw_field_name, disabled=disabled
+                label=field_name, value=value, min_value=0, key=key, disabled=disabled
             )
         elif type(value) is bool:
-            return st.checkbox(label=field_name, value=value, key=raw_field_name, disabled=disabled)
+            return st.checkbox(label=field_name, value=value, key=key, disabled=disabled)
+        elif type(value) is tuple:
+            return st.selectbox(label=field_name, key=key, options=value)
+        elif type(value) is dict:
+            return st.selectbox(
+                label=field_name,
+                options=value,
+                format_func=value.get,
+                key=key,
+                disabled=disabled,
+            )
         else:
             raise ValueError(f"Unsupported type of the value: {type(value)}")
 
@@ -221,6 +242,9 @@ class GeneratorUI:
         provider_code = self.dtm_provider_code
         provider = mfs.DTMProvider.get_provider_by_code(provider_code)
 
+        if provider is None:
+            return
+
         self.provider_settings = None
         self.provider_info_container.empty()
         sleep(0.1)
@@ -230,6 +254,11 @@ class GeneratorUI:
                 if provider.is_community():
                     st.warning(Messages.COMMUNITY_PROVIDER, icon="💡")
                     st.write(f"Author: {provider.author()}")
+                    if provider.contributors() is not None:
+                        st.write(f"Contributors: {provider.contributors()}")
+
+                if provider.base_instructions() is not None:
+                    st.write(provider.base_instructions())
 
                 if provider.instructions() is not None:
                     st.write(provider.instructions())
@@ -240,7 +269,9 @@ class GeneratorUI:
                     settings_json = provider_settings.model_dump()
                     for raw_field_name, value in settings_json.items():
                         field_name = self.snake_to_human(raw_field_name)
-                        widget = self._create_widget(field_name, raw_field_name, value)
+                        widget = self._create_widget(
+                            provider_code, field_name, raw_field_name, value
+                        )
 
                         settings[raw_field_name] = widget
 
@@ -306,8 +337,13 @@ class GeneratorUI:
 
             self.map_size_input = custom_map_size_input
 
+        try:
+            lat, lon = self.lat_lon
+        except ValueError:
+            lat, lon = DEFAULT_LAT, DEFAULT_LON
+
         # DTM Provider selection.
-        providers: dict[str, str] = mfs.DTMProvider.get_provider_descriptions()
+        providers: dict[str, str] = mfs.DTMProvider.get_valid_provider_descriptions((lat, lon))
         # Keys are provider codes, values are provider descriptions.
         # In selector we'll show descriptions, but we'll use codes in the background.
 
@@ -322,7 +358,7 @@ class GeneratorUI:
             on_change=self.provider_info,
         )
         self.provider_settings = None
-        self.provider_info_container = st.empty()
+        self.provider_info_container: st.delta_generator.DeltaGenerator = st.empty()
         self.provider_info()
 
         # Rotation input.
@@ -345,6 +381,7 @@ class GeneratorUI:
         self.raw_config = None
 
         self.custom_osm_path = None
+        self.custom_template_path = None
 
         self.get_settings()
 
@@ -423,6 +460,24 @@ class GeneratorUI:
                             label_visibility="collapsed",
                         )
 
+            self.custom_template = st.checkbox(
+                "Upload custom template", value=False, key="custom_template"
+            )
+
+            if self.custom_template:
+                self.logger.debug("Custom template is enabled.")
+                st.info(Messages.CUSTOM_TEMPLATE_INFO)
+
+                uploaded_template = st.file_uploader("Upload a zip file", type=["zip"])
+                if uploaded_template is not None:
+                    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                    self.custom_template_path = os.path.join(
+                        config.INPUT_DIRECTORY, f"custom_template_{timestamp}.zip"
+                    )
+                    with open(self.custom_template_path, "wb") as f:
+                        f.write(uploaded_template.read())
+                    st.success(f"Custom template uploaded: {uploaded_template.name}")
+
             self.custom_background = st.checkbox(
                 "Upload custom background", value=False, key="custom_background"
             )
@@ -439,6 +494,17 @@ class GeneratorUI:
                     with open(self.custom_background_path, "wb") as f:
                         f.write(uploaded_file.read())
                     st.success(f"Custom background uploaded: {uploaded_file.name}")
+
+            if not self.public:
+                manage_cache = st.checkbox("Manage cache", value=False, key="manage_cache")
+                if manage_cache:
+                    temp_size = config.get_temp_size()
+                    st.write(Messages.CACHE_INFO)
+                    st.write(f"Cache size: {round(temp_size, 2)} MB")
+                    if temp_size > 10:
+                        if st.button("Clean cache"):
+                            config.clean_temp()
+                            st.success("Cache cleaned.")
 
         # Add an empty container for status messages.
         self.status_container = st.empty()
@@ -502,7 +568,7 @@ class GeneratorUI:
 
     def generate_map(self) -> None:
         """Generate the map."""
-        game = mfs.Game.from_code(self.game_code)
+        game = mfs.Game.from_code(self.game_code, self.custom_template_path)
 
         try:
             lat, lon = self.lat_lon

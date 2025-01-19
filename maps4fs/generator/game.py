@@ -6,10 +6,10 @@ from __future__ import annotations
 
 import os
 
-from maps4fs.generator.background import Background
-from maps4fs.generator.config import Config
-from maps4fs.generator.grle import GRLE
-from maps4fs.generator.i3d import I3d
+from maps4fs.generator.component.background import Background
+from maps4fs.generator.component.config import Config
+from maps4fs.generator.component.grle import GRLE
+from maps4fs.generator.component.i3d import I3d
 from maps4fs.generator.satellite import Satellite
 from maps4fs.generator.texture import Texture
 
@@ -38,9 +38,11 @@ class Game:
     _texture_schema: str | None = None
     _grle_schema: str | None = None
     _tree_schema: str | None = None
+    _i3d_processing: bool = True
+    _plants_processing: bool = True
 
     # Order matters! Some components depend on others.
-    components = [Texture, GRLE, Background, I3d, Config, Satellite]
+    components = [Texture, Background, GRLE, I3d, Config, Satellite]
 
     def __init__(self, map_template_path: str | None = None):
         if map_template_path:
@@ -58,18 +60,19 @@ class Game:
         return os.path.join(map_directory, "maps", "map", "map.xml")
 
     @classmethod
-    def from_code(cls, code: str) -> Game:
+    def from_code(cls, code: str, map_template_path: str | None = None) -> Game:
         """Returns the game instance based on the game code.
 
         Arguments:
             code (str): The code of the game.
+            map_template_path (str, optional): Path to the map template file. Defaults to None.
 
         Returns:
             Game: The game instance.
         """
         for game in cls.__subclasses__():
             if game.code and game.code.lower() == code.lower():
-                return game()
+                return game(map_template_path)
         raise ValueError(f"Game with code {code} not found.")
 
     @property
@@ -145,6 +148,38 @@ class Game:
             str: The path to the weights directory."""
         raise NotImplementedError
 
+    def get_density_map_fruits_path(self, map_directory: str) -> str:
+        """Returns the path to the density map fruits file.
+
+        Arguments:
+            map_directory (str): The path to the map directory.
+
+        Returns:
+            str: The path to the density map fruits file."""
+        weights_dir = self.weights_dir_path(map_directory)
+        return os.path.join(weights_dir, "densityMap_fruits.png")
+
+    def get_farmlands_path(self, map_directory: str) -> str:
+        """Returns the path to the farmlands file.
+
+        Arguments:
+            map_directory (str): The path to the map directory.
+
+        Returns:
+            str: The path to the farmlands file."""
+        weights_dir = self.weights_dir_path(map_directory)
+        return os.path.join(weights_dir, "infoLayer_farmlands.png")
+
+    def get_farmlands_xml_path(self, map_directory: str) -> str:
+        """Returns the path to the farmlands xml file.
+
+        Arguments:
+            map_directory (str): The path to the map directory.
+
+        Returns:
+            str: The path to the farmlands xml file."""
+        raise NotImplementedError
+
     def i3d_file_path(self, map_directory: str) -> str:
         """Returns the path to the i3d file.
 
@@ -156,12 +191,39 @@ class Game:
         raise NotImplementedError
 
     @property
+    def i3d_processing(self) -> bool:
+        """Returns whether the i3d file should be processed.
+
+        Returns:
+            bool: True if the i3d file should be processed, False otherwise."""
+        return self._i3d_processing
+
+    @property
+    def plants_processing(self) -> bool:
+        """Returns whether the plants should be processed.
+
+        Returns:
+            bool: True if the plants should be processed, False otherwise."""
+        return self._plants_processing
+
+    @property
     def additional_dem_name(self) -> str | None:
         """Returns the name of the additional DEM file.
 
         Returns:
             str | None: The name of the additional DEM file."""
         return self._additional_dem_name
+
+    def splines_file_path(self, map_directory: str) -> str:
+        """Returns the path to the splines file.
+
+        Arguments:
+            map_directory (str): The path to the map directory.
+
+        Returns:
+            str: The path to the splines file."""
+        i3d_base_directory = os.path.dirname(self.i3d_file_path(map_directory))
+        return os.path.join(i3d_base_directory, "splines.i3d")
 
 
 # pylint: disable=W0223
@@ -171,6 +233,8 @@ class FS22(Game):
     code = "FS22"
     _map_template_path = os.path.join(working_directory, "data", "fs22-map-template.zip")
     _texture_schema = os.path.join(working_directory, "data", "fs22-texture-schema.json")
+    _i3d_processing = False
+    _plants_processing = False
 
     def dem_file_path(self, map_directory: str) -> str:
         """Returns the path to the DEM file.
@@ -191,6 +255,16 @@ class FS22(Game):
         Returns:
             str: The path to the weights directory."""
         return os.path.join(map_directory, "maps", "map", "data")
+
+    def i3d_file_path(self, map_directory: str) -> str:
+        """Returns the path to the i3d file.
+
+        Arguments:
+            map_directory (str): The path to the map directory.
+
+        Returns:
+            str: The path to the i3d file."""
+        return os.path.join(map_directory, "maps", "map", "map.i3d")
 
 
 class FS25(Game):
@@ -244,3 +318,13 @@ class FS25(Game):
         Returns:
             str: The path to the i3d file."""
         return os.path.join(map_directory, "map", "map.i3d")
+
+    def get_farmlands_xml_path(self, map_directory: str) -> str:
+        """Returns the path to the farmlands xml file.
+
+        Arguments:
+            map_directory (str): The path to the map directory.
+
+        Returns:
+            str: The path to the farmlands xml file."""
+        return os.path.join(map_directory, "map", "config", "farmlands.xml")

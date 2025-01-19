@@ -7,6 +7,23 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 
+class Parameters:
+    """Simple class to store string constants for parameters."""
+
+    FIELD = "field"
+    FIELDS = "fields"
+    TEXTURES = "textures"
+    FOREST = "forest"
+    ROADS_POLYLINES = "roads_polylines"
+    FARMYARDS = "farmyards"
+
+    PREVIEW_MAXIMUM_SIZE = 2048
+
+    BACKGROUND_DISTANCE = 2048
+    FULL = "FULL"
+    PREVIEW = "PREVIEW"
+
+
 class SharedSettings(BaseModel):
     """Represents the shared settings for all components."""
 
@@ -42,18 +59,28 @@ class SettingsModel(BaseModel):
         return all_settings
 
     @classmethod
-    def all_settings_from_json(cls, data: dict) -> dict[str, SettingsModel]:
+    def all_settings_from_json(
+        cls, data: dict, flattening: bool = True
+    ) -> dict[str, SettingsModel]:
         """Create settings instances from JSON data.
 
         Arguments:
             data (dict): JSON data.
+            flattening (bool): if set to True will flattet iterables to use the first element
+                of it.
 
         Returns:
             dict[str, Type[SettingsModel]]: Dictionary with settings instances.
         """
         settings = {}
         for subclass in cls.__subclasses__():
-            settings[subclass.__name__] = subclass(**data[subclass.__name__])
+            subclass_data = data[subclass.__name__]
+            if flattening:
+                for key, value in subclass_data.items():
+                    if isinstance(value, (list, tuple)):
+                        subclass_data[key] = value[0]
+
+            settings[subclass.__name__] = subclass(**subclass_data)
 
         return settings
 
@@ -121,6 +148,14 @@ class GRLESettings(SettingsModel):
     farmland_margin: int = 0
     random_plants: bool = True
     add_farmyards: bool = False
+    base_price: int = 60000
+    price_scale: int = 100
+    base_grass: tuple | str = ("smallDenseMix", "meadow")
+    plants_island_minimum_size: int = 10
+    plants_island_maximum_size: int = 200
+    plants_island_vertex_count: int = 30
+    plants_island_rounding_radius: int = 15
+    plants_island_percent: int = 100
 
 
 class I3DSettings(SettingsModel):
@@ -131,6 +166,7 @@ class I3DSettings(SettingsModel):
     """
 
     forest_density: int = 10
+    trees_relative_shift: int = 20
 
 
 class TextureSettings(SettingsModel):
@@ -145,6 +181,7 @@ class TextureSettings(SettingsModel):
     dissolve: bool = False
     fields_padding: int = 0
     skip_drains: bool = False
+    use_cache: bool = True
 
 
 class SplineSettings(SettingsModel):
@@ -167,5 +204,5 @@ class SatelliteSettings(SettingsModel):
     """
 
     download_images: bool = False
-    satellite_margin: int = 100
+    satellite_margin: int = 0
     zoom_level: int = 14

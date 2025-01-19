@@ -7,11 +7,11 @@ import os
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
-import cv2  # type: ignore
-import osmnx as ox  # type: ignore
+import cv2
+import osmnx as ox
 from pyproj import Transformer
-from shapely.affinity import rotate, translate  # type: ignore
-from shapely.geometry import LineString, Polygon, box  # type: ignore
+from shapely.affinity import rotate, translate
+from shapely.geometry import LineString, Polygon, box
 
 from maps4fs.generator.qgis import save_scripts
 
@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from maps4fs.generator.map import Map
 
 
-# pylint: disable=R0801, R0903, R0902, R0904, R0913, R0917
 class Component:
     """Base class for all map generation components.
 
@@ -39,7 +38,7 @@ class Component:
     def __init__(
         self,
         game: Game,
-        map: Map,  # pylint: disable=W0622
+        map: Map,
         coordinates: tuple[float, float],
         map_size: int,
         map_rotated_size: int,
@@ -59,7 +58,7 @@ class Component:
         self.kwargs = kwargs
 
         self.logger.debug(
-            "Component %s initialized. Map size: %s, map rotated size: %s",  # type: ignore
+            "Component %s initialized. Map size: %s, map rotated size: %s",
             self.__class__.__name__,
             self.map_size,
             self.map_rotated_size,
@@ -90,12 +89,13 @@ class Component:
         raise NotImplementedError
 
     def previews(self) -> list[str]:
-        """Returns a list of paths to the preview images. Must be implemented in the child class.
+        """Returns a list of paths to the preview images. If the component does not generate any
+        previews, the method may not be re-implemented in the child class.
 
-        Raises:
-            NotImplementedError: If the method is not implemented in the child class.
+        Returns:
+            list[str]: A list of paths to the preview images.
         """
-        raise NotImplementedError
+        return []
 
     @property
     def previews_directory(self) -> str:
@@ -188,8 +188,7 @@ class Component:
         self,
         coordinates: tuple[float, float] | None = None,
         distance: int | None = None,
-        project_utm: bool = False,
-    ) -> tuple[int, int, int, int]:
+    ) -> tuple[float, float, float, float]:
         """Calculates the bounding box of the map from the coordinates and the height and
         width of the map.
         If coordinates and distance are not provided, the instance variables are used.
@@ -199,24 +198,23 @@ class Component:
                 of the map. Defaults to None.
             distance (int, optional): The distance from the center of the map to the edge of the
                 map in all directions. Defaults to None.
-            project_utm (bool, optional): Whether to project the bounding box to UTM.
 
         Returns:
-            tuple[int, int, int, int]: The bounding box of the map.
+            tuple[float, float, float, float]: The bounding box of the map.
         """
         coordinates = coordinates or self.coordinates
         distance = distance or int(self.map_rotated_size / 2)
 
-        west, south, east, north = ox.utils_geo.bbox_from_point(  # type: ignore
-            coordinates, dist=distance, project_utm=project_utm
+        west, south, east, north = ox.utils_geo.bbox_from_point(
+            coordinates,
+            dist=distance,
         )
 
         bbox = north, south, east, west
         self.logger.debug(
-            "Calculated bounding box for component: %s: %s, project_utm: %s, distance: %s",
+            "Calculated bounding box for component: %s: %s, distance: %s",
             self.__class__.__name__,
             bbox,
-            project_utm,
             distance,
         )
         return bbox
@@ -225,7 +223,7 @@ class Component:
         """Saves the bounding box of the map to the component instance from the coordinates and the
         height and width of the map.
         """
-        self.bbox = self.get_bbox(project_utm=False)
+        self.bbox = self.get_bbox()
         self.logger.debug("Saved bounding box: %s", self.bbox)
 
     @property
@@ -262,11 +260,11 @@ class Component:
         epsg3857_south, epsg3857_east = transformer.transform(south, east)
 
         if add_margin:
-            MARGIN = 500  # pylint: disable=C0103
-            epsg3857_north = int(epsg3857_north - MARGIN)
-            epsg3857_south = int(epsg3857_south + MARGIN)
-            epsg3857_east = int(epsg3857_east - MARGIN)
-            epsg3857_west = int(epsg3857_west + MARGIN)
+            margin = 500
+            epsg3857_north = int(epsg3857_north - margin)
+            epsg3857_south = int(epsg3857_south + margin)
+            epsg3857_east = int(epsg3857_east - margin)
+            epsg3857_west = int(epsg3857_west + margin)
 
         return epsg3857_north, epsg3857_south, epsg3857_east, epsg3857_west
 
@@ -347,13 +345,13 @@ class Component:
 
         return cs_x, cs_y
 
-    # pylint: disable=R0914
     def fit_object_into_bounds(
         self,
         polygon_points: list[tuple[int, int]] | None = None,
         linestring_points: list[tuple[int, int]] | None = None,
         margin: int = 0,
         angle: int = 0,
+        border: int = 0,
     ) -> list[tuple[int, int]]:
         """Fits a polygon into the bounds of the map.
 
@@ -362,6 +360,7 @@ class Component:
             linestring_points (list[tuple[int, int]]): The points of the linestring.
             margin (int, optional): The margin to add to the polygon. Defaults to 0.
             angle (int, optional): The angle to rotate the polygon by. Defaults to 0.
+            border (int, optional): The border to add to the bounds. Defaults to 0.
 
         Returns:
             list[tuple[int, int]]: The points of the polygon fitted into the map bounds.
@@ -369,8 +368,8 @@ class Component:
         if polygon_points is None and linestring_points is None:
             raise ValueError("Either polygon or linestring points must be provided.")
 
-        min_x = min_y = 0
-        max_x = max_y = self.map_size
+        min_x = min_y = 0 + border
+        max_x = max_y = self.map_size - border
 
         object_type = Polygon if polygon_points else LineString
 
@@ -404,9 +403,7 @@ class Component:
             fitted_osm_object = osm_object.intersection(bounds)
             self.logger.debug("Fitted the osm_object into the bounds: %s", bounds)
         except Exception as e:
-            raise ValueError(  # pylint: disable=W0707
-                f"Could not fit the osm_object into the bounds: {e}"
-            )
+            raise ValueError(f"Could not fit the osm_object into the bounds: {e}")
 
         if not isinstance(fitted_osm_object, object_type):
             raise ValueError("The fitted osm_object is not valid (probably splitted into parts).")
@@ -438,7 +435,27 @@ class Component:
             return None
         return info_layer_path
 
-    # pylint: disable=R0913, R0917, R0914
+    def get_infolayer_data(self, layer_name: str, layer_key: str) -> Any | None:
+        """Reads the JSON file of the requested info layer and returns the value of the requested
+        key. If the layer or the key does not exist, None is returned.
+
+        Arguments:
+            layer_name (str): The name of the layer.
+            layer_key (str): The key to get the value of.
+
+        Returns:
+            Any | None: The value of the requested key or None if the layer or the key does not
+                exist.
+        """
+        infolayer_path = self.get_infolayer_path(layer_name)
+        if not infolayer_path:
+            return None
+
+        with open(infolayer_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        return data.get(layer_key)
+
     def rotate_image(
         self,
         image_path: str,
@@ -460,7 +477,6 @@ class Component:
             self.logger.warning("Image %s does not exist", image_path)
             return
 
-        # pylint: disable=no-member
         image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
         if image is None:
             self.logger.warning("Image %s could not be read", image_path)
@@ -535,3 +551,19 @@ class Component:
         interpolated_polyline.append(polyline[-1])
 
         return interpolated_polyline
+
+    def get_z_scaling_factor(self) -> float:
+        """Calculates the scaling factor for the Z axis based on the map settings.
+
+        Returns:
+            float -- The scaling factor for the Z axis.
+        """
+
+        scaling_factor = 1 / self.map.dem_settings.multiplier
+
+        if self.map.shared_settings.height_scale_multiplier:
+            scaling_factor *= self.map.shared_settings.height_scale_multiplier
+        if self.map.shared_settings.mesh_z_scaling_factor:
+            scaling_factor *= 1 / self.map.shared_settings.mesh_z_scaling_factor
+
+        return scaling_factor

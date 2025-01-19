@@ -89,6 +89,18 @@ class Messages:
         "This DTM provider was developed by the community, if you have any issues with it "
         "please contact the author."
     )
+    CUSTOM_TEMPLATE_INFO = (
+        "This option allows you to upload your own map template.  \n"
+        "The template should match the structure of the default template, otherwise it will "
+        "not work. Prepare the template carefully, any mistake can lead to errors or completely "
+        "broken map. No support will be provided for custom templates."
+    )
+    CACHE_INFO = (
+        "Cache contains the data from DTM Providers, map previews, satellite images, etc. "
+        "If you clean the cache, it will be removed but the generator will download the data "
+        "again so it may take longer to generate the map. Do not clean the cache unless you "
+        "have any issues with it."
+    )
 
 
 class Settings:
@@ -122,7 +134,8 @@ class Settings:
         "Pay attention to the fact, that this value IS NOT IN METERS, instead it uses the pixel "
         "value from the DEM image. So, if you set low values, you will probably see no "
         "difference. Also, this value will be added to the plateau value, to avoid negative "
-        "height."
+        "height.  \n"
+        "ℹ️ **Units:** pixel value."
     )
 
     GENERATE_BACKGROUND = (
@@ -137,7 +150,8 @@ class Settings:
         "The background resize factor is used to resize the background terrain. The higher the value, "
         "the less detailed the background terrain will be. If set to 1, the background terrain "
         "will not be resized. Low values will result with a very long processing and "
-        "meshes of enormous size. Do not change it unless you know what you are doing."
+        "meshes of enormous size. Do not change it unless you know what you are doing.  \n"
+        "ℹ️ **Units:** integer value."
     )
     REMOVE_CENTER = (
         "If remove center is enabled, the region of playable map terrain will be removed "
@@ -152,12 +166,14 @@ class Settings:
     DECIMATION_PERCENT = (
         "Decimation percent value is used to set the decimation percent. The higher the value, "
         "the more decimated the model will be. Be careful with high values, because it may "
-        "completely break the model."
+        "completely break the model.  \n"
+        "ℹ️ **Units:** percents of the original image size."
     )
     DECIMATION_AGRESSION = (
         "Decimation aggression value is used to set the decimation aggression. The higher the "
         "the more faces will be removed. Note, that higher values will break the geometry of the "
-        "3D model and it won't match with the playable terrain. "
+        "3D model and it won't match with the playable terrain.  \n"
+        "ℹ️ **Units:** integer value."
     )
 
     # GRLE Settings
@@ -165,7 +181,8 @@ class Settings:
     FARMLAND_MARGIN = (
         "Farmland margin value is used to add some margin around the farmland. "
         "It can be useful because without the margin, the farmland will end exact on the same "
-        "position as the field ends. This can cause some issues with gameplay."
+        "position as the field ends. This can cause some issues with gameplay.  \n"
+        "ℹ️ **Units:** meters."
     )
     RANDOM_PLANTS = (
         "If random plants are enabled the different species of plants will be generated. "
@@ -178,6 +195,44 @@ class Settings:
         "corresponding field. It can be useful if you want to add some farmland in the "
         "regions without fields."
     )
+    BASE_GRASS = "Select the plant that will be used as a base grass."
+    PLANTS_ISLAND_MINIMUM_SIZE = (
+        "Plants island minimum size value is used to set the minimum size of the plants islands "
+        "when random size of the island will be selected, it will be the lowest possible size.  \n"
+        "ℹ️ **Units:** meters."
+    )
+    PLANTS_ISLAND_MAXIMUM_SIZE = (
+        "Plants island maximum size value is used to set the maximum size of the plants islands "
+        "when random size of the island will be selected, it will be the highest possible size.  \n"
+        "ℹ️ **Units:** meters."
+    )
+    PLANTS_ISLAND_VERTEX_COUNT = (
+        "Plants island vertex count value is used to set the number of vertices of the plants. "
+        "The higher the value, the more complex shapes of the island will be.  \n"
+        "ℹ️ **Units:** number of vertices."
+    )
+    PLANTS_ISLAND_ROUNDING_RADIUS = (
+        "Plants island rounding radius value is used to set the rounding radius of the plants. "
+        "The higher the value, the more rounded the vertices will be.  \n"
+        "ℹ️ **Units:** meters."
+    )
+    PLANTS_ISLAND_PERCENT = (
+        "Plants island percent value is used to set the relation between the map size and the "
+        "number of islands of plants. For example, if set to 100% for map size of 2048, the number"
+        " of islands will be 2048.  \n"
+        "ℹ️ **Units:** percents of the map size."
+    )
+    BASE_PRICE = (
+        "Base price value is used to set the base price of the farmland. It will be used to "
+        "calculate the final price of the farmland.  \n"
+        "ℹ️ **Units:** in-game currency (EUR or USD)."
+    )
+    PRICE_SCALE = (
+        "Price scale value is a percentage value that will be applied to the price of the "
+        "farmland based on the base price in farmlands.xml file. To make the farmland more "
+        "expensive, make this value higher than 100. To make it cheaper, make it lower than 100.  \n"
+        "ℹ️ **Units:** percents of the base price."
+    )
 
     # I3D Settings
 
@@ -186,7 +241,15 @@ class Settings:
         "The higher the value, the more sparse the forest will be and less trees will be "
         "generated. Be careful with low values, because depending on the amount of forest areas "
         "and the map size, it may generate dozens of thousands of trees, which can cause "
-        "performance issues."
+        "performance issues.  \n"
+        "ℹ️ **Units:** meters between trees."
+    )
+
+    TREES_RELATIVE_SHIFT = (
+        "Represents the maximum possible shift of the tree from it's original position in percents"
+        " of the density value. For example: if the density is set to 10 and the relative shift "
+        "is set to 20%, the tree can be shifted by 2 meters in each direction.  \n"
+        "ℹ️ **Units:** percents of the Forest Density value."
     )
 
     # Texture Settings
@@ -205,6 +268,13 @@ class Settings:
     SKIP_DRAINS = (
         "If skip drains is enabled, the drains and ditches will be ignored while generating "
         "the map."
+    )
+    USE_CACHE = (
+        "If use cache is enabled, the data from OSM will be cached, that means that if you "
+        "generated the map once and then made some changes in the OSM file, the generator will "
+        "use the cached data instead of downloading it again. It can save some time, but if you "
+        "want to get the most recent data, you should disable this option. This option has no "
+        "effect when you're using the custom OSM file."
     )
 
     # Splines Settings

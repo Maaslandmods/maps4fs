@@ -6,8 +6,8 @@ import os
 import cv2
 from pygmdl import save_image  # type: ignore
 
-from maps4fs.generator.background import DEFAULT_DISTANCE
-from maps4fs.generator.component import Component
+from maps4fs.generator.component.base.component import Component
+from maps4fs.generator.settings import Parameters
 from maps4fs.generator.texture import PREVIEW_MAXIMUM_SIZE
 
 
@@ -41,7 +41,7 @@ class Satellite(Component):
         overview_size = (self.map_size + margin) * 2
         overwiew_path = os.path.join(self.satellite_directory, "satellite_overview.png")
 
-        background_size = self.map_size + (DEFAULT_DISTANCE + margin) * 2
+        background_size = self.map_size + (Parameters.BACKGROUND_DISTANCE + margin) * 2
         background_path = os.path.join(self.satellite_directory, "satellite_background.png")
 
         sizes = [overview_size, background_size]
@@ -65,7 +65,6 @@ class Satellite(Component):
                 self.logger.error(f"Failed to download satellite image: {e}")
                 continue
 
-    # pylint: disable=no-member
     def previews(self) -> list[str]:
         """Returns the paths to the preview images.
 
